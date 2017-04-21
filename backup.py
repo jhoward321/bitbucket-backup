@@ -30,7 +30,10 @@ except NameError:
 
 _verbose = False
 _quiet = False
-
+_log = False
+_logfile = "backuplog.txt"
+_status = False
+_statusfile = "last_status.txt"
 
 class MaxBackupAttemptsReached(Exception):
     pass
@@ -40,9 +43,12 @@ def debug(message, output_no_verbose=False):
     """
     Outputs a message to stdout taking into account the options verbose/quiet.
     """
-    global _quiet, _verbose
+    global _quiet, _verbose, _log, _logfile
     if not _quiet and (output_no_verbose or _verbose):
         print("%s - %s" % (datetime.datetime.now(), message))
+    if _log and (output_no_verbose or _verbose):
+        with open(_logfile, 'a') as f:
+            f.write("%s - %s\n" % (datetime.datetime.now(), message))
 
 
 def exit(message, code=1):
@@ -50,9 +56,15 @@ def exit(message, code=1):
     Forces script termination using C based error codes.
     By default, it uses error 1 (EPERM - Operation not permitted)
     """
-    global _quiet
+    global _quiet, _log, _logfile, _status, _statusfile
+    if _status:
+        with open(_statusfile, 'w') as f:
+            f.write("FAILED %s" % datetime.datetime.now())
     if not _quiet and message and len(message) > 0:
         sys.stderr.write("%s (%s)\n" % (message, code))
+    if _log and message and len(message) > 0:
+        with open(_logfile, 'a') as f:
+            f.write("%s (%s)\n" % (message, code))
     sys.exit(code)
 
 
@@ -158,6 +170,8 @@ def main():
     parser.add_argument('--skip-password', dest="skip_password", action='store_true', help="Ignores password prompting if no password is provided (for public repositories)")
     parser.add_argument('--prune', dest="prune", action='store_true', help="Prune repo on remote update")
     parser.add_argument('--ignore-repo-list', dest='ignore_repo_list', nargs='+', type=str, help="specify list of repo slug names to skip")
+    parser.add_argument('--log', action='store_true', dest='log', help="log outputs to file 'backuplog.txt' in backup directory")
+    parser.add_argument('--status', action='store_true', dest='status', help="output a 'SUCCESS' or 'FAILED' to file 'last_status.txt' in backup directory")
     args = parser.parse_args()
     location = args.location
     username = args.username
@@ -172,6 +186,10 @@ def main():
     _verbose = args.verbose
     _mirror = args.mirror
     _with_wiki = args.with_wiki
+    global _log
+    _log = args.log
+    global _status
+    _status = args.status
     if _quiet:
         _verbose = False  # override in case both are selected
 
@@ -187,6 +205,10 @@ def main():
     if not location:
         location = input('Enter local location to backup to: ')
     location = os.path.abspath(location)
+    global _logfile
+    _logfile = os.path.join(location, _logfile)
+    global _statusfile
+    _statusfile = os.path.join(location, _statusfile)
 
     # ok to proceed
     try:
@@ -226,6 +248,9 @@ def main():
         if args.compress:
             compress(repo, location)
         debug("Finished!", True)
+        if _status:
+            with open(_statusfile, 'w') as f:
+                f.write("SUCCESS %s" % datetime.datetime.now())
     except HTTPError as err:
         if err.code == 401:
             exit("Unauthorized! Check your credentials and try again.", 22)  # EINVAL - Invalid argument
