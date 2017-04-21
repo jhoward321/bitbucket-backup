@@ -11,7 +11,7 @@ an `git remote update` will be run for git repos.
 ## Installation
 
 ```bash
-pip install https://github.com/samkuehn/bitbucket-backup/archive/master.zip
+pip install https://github.com/jhoward321/bitbucket-backup/archive/master.zip
 ```
 
 ## Quickstart
